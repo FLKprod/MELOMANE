@@ -196,7 +196,7 @@ app.post('/api/admin/submissions/:id/review', requireAuth, requireAdmin, asyncRo
 }));
 
 // Streaming endpoint: authenticated access only. Add subscription/territory checks here before launch.
-const SUPABASE_BUCKET_URL = 'https://supabase.co';
+const SUPABASE_BUCKET_URL = 'https://gfhugxkdcaskexcmeocv.supabase.co/storage/v1/object/public/Music%20and%20Covers';
 
 // Streaming endpoint: lit depuis Supabase et renvoie directement au navigateur
 app.get('/api/tracks/:id/audio', requireAuth, asyncRoute(async (req, res) => {
