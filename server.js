@@ -42,6 +42,7 @@ app.use(helmet({
     }
   }
 }));
+
 app.use(express.json({ limit: '100kb' }));
 app.use(express.urlencoded({ extended: false, limit: '20kb' }));
 app.use(session({
@@ -222,11 +223,11 @@ app.get('/api/tracks/:id/cover', requireAuth, asyncRoute(async (req, res) => {
   return res.redirect(`${SUPABASE_BUCKET_URL}/${encodeURIComponent(track.cover_name)}`);
 }));
 
-/*app.use((err, _req, res, _next) => {
+app.use((err, _req, res, _next) => {
   console.error(err);
   if (err instanceof multer.MulterError) return res.status(400).json({ error: 'Fichier trop volumineux ou invalide.' });
   res.status(500).json({ error: process.env.NODE_ENV === 'production' ? 'Erreur serveur.' : err.message });
 });
 
 const port = Number(process.env.PORT || 3000);
-app.listen(port, () => console.log(`MELÓMANE lancé sur http://localhost:${port}`));*/
+app.listen(port, () => console.log(`MELÓMANE lancé sur http://localhost:${port}`));
