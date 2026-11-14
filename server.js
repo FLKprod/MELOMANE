@@ -198,23 +198,47 @@ app.post('/api/admin/submissions/:id/review', requireAuth, requireAdmin, asyncRo
 // Streaming endpoint: authenticated access only. Add subscription/territory checks here before launch.
 const SUPABASE_BUCKET_URL = 'https://supabase.co';
 
-// Streaming endpoint: authenticated access only.
+// Streaming endpoint: lit depuis Supabase et renvoie directement au navigateur
 app.get('/api/tracks/:id/audio', requireAuth, asyncRoute(async (req, res) => {
-  const result = await pool.query('SELECT stored_name FROM tracks WHERE id=$1 AND is_published=TRUE', [req.params.id]);
+  const result = await pool.query('SELECT stored_name, mime_type FROM tracks WHERE id=$1 AND is_published=TRUE', [req.params.id]);
   const track = result.rows[0];
   if (!track || !track.stored_name) return res.status(404).json({ error: 'Morceau introuvable.' });
 
-  return res.redirect(`${SUPABASE_BUCKET_URL}/${encodeURIComponent(track.stored_name)}`);
+  const fileUrl = `${SUPABASE_BUCKET_URL}/${encodeURIComponent(track.stored_name)}`;
+  const headers = {};
+  if (req.headers.range) headers.Range = req.headers.range; // Indispensable pour avancer/reculer dans la barre de lecture
+
+  const upstream = await fetch(fileUrl, { headers });
+  if (!upstream.ok && upstream.status !== 206) {
+    return res.status(upstream.status).json({ error: 'Fichier audio introuvable sur Supabase.' });
+  }
+
+  res.status(upstream.status);
+  res.setHeader('Content-Type', upstream.headers.get('content-type') || track.mime_type || 'audio/wav');
+  if (upstream.headers.get('content-length')) res.setHeader('Content-Length', upstream.headers.get('content-length'));
+  if (upstream.headers.get('content-range')) res.setHeader('Content-Range', upstream.headers.get('content-range'));
+  res.setHeader('Accept-Ranges', 'bytes');
+
+  const { Readable } = await import('node:stream');
+  Readable.fromWeb(upstream.body).pipe(res);
 }));
 
-// Cover endpoint: placé AVANT app.use(err) et app.listen !
+// Cover endpoint: lit l'image depuis Supabase et la renvoie directement au navigateur
 app.get('/api/tracks/:id/cover', requireAuth, asyncRoute(async (req, res) => {
-  const result = await pool.query(
-    `SELECT cover_name
-     FROM tracks
-     WHERE id = $1 AND is_published = TRUE`,
-    [req.params.id]
-  );
+  const result = await pool.query('SELECT cover_name, cover_mime_type FROM tracks WHERE id=$1 AND is_published=TRUE', [req.params.id]);
+  const track = result.rows[0];
+  if (!track || !track.cover_name) return res.status(404).json({ error: 'Pochette introuvable.' });
+
+  const fileUrl = `${SUPABASE_BUCKET_URL}/${encodeURIComponent(track.cover_name)}`;
+  const upstream = await fetch(fileUrl);
+  if (!upstream.ok) {
+    return res.status(upstream.status).json({ error: 'Pochette introuvable sur Supabase.' });
+  }
+
+  res.setHeader('Content-Type', upstream.headers.get('content-type') || track.cover_mime_type || 'image/jpeg');
+  const { Readable } = await import('node:stream');
+  Readable.fromWeb(upstream.body).pipe(res);
+}));
 
   const track = result.rows[0];
   if (!track || !track.cover_name) {
