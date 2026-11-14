@@ -240,13 +240,6 @@ app.get('/api/tracks/:id/cover', requireAuth, asyncRoute(async (req, res) => {
   Readable.fromWeb(upstream.body).pipe(res);
 }));
 
-  const track = result.rows[0];
-  if (!track || !track.cover_name) {
-    return res.status(404).json({ error: 'Pochette introuvable.' });
-  }
-
-  return res.redirect(`${SUPABASE_BUCKET_URL}/${encodeURIComponent(track.cover_name)}`);
-}));
 
 app.use((err, _req, res, _next) => {
   console.error(err);
