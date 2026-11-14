@@ -34,9 +34,9 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       scriptSrc: ["'self'"],
-      imgSrc: ["'self'", "data:"],
-      mediaSrc: ["'self'", "blob:"],
-      connectSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https://*.supabase.co"],
+      mediaSrc: ["'self'", "blob:", "https://*.supabase.co"],
+      connectSrc: ["'self'", "https://*.supabase.co"],
       objectSrc: ["'none'"],
       upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null
     }
@@ -194,14 +194,32 @@ app.post('/api/admin/submissions/:id/review', requireAuth, requireAdmin, asyncRo
 }));
 
 // Streaming endpoint: authenticated access only. Add subscription/territory checks here before launch.
+const SUPABASE_BUCKET_URL = 'https://supabase.co';
+
+// Streaming endpoint: authenticated access only.
 app.get('/api/tracks/:id/audio', requireAuth, asyncRoute(async (req, res) => {
-  const result = await pool.query('SELECT stored_name,mime_type FROM tracks WHERE id=$1 AND is_published=TRUE', [req.params.id]);
-  if (!result.rows[0]) return res.status(404).json({ error: 'Morceau introuvable.' });
-  const filePath = path.join(uploadDir, path.basename(result.rows[0].stored_name));
-  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Fichier audio indisponible.' });
-  res.type(result.rows[0].mime_type);
-  res.setHeader('Cache-Control', 'private, no-store');
-  res.sendFile(filePath);
+  const result = await pool.query('SELECT stored_name FROM tracks WHERE id=$1 AND is_published=TRUE', [req.params.id]);
+  const track = result.rows[0];
+  if (!track || !track.stored_name) return res.status(404).json({ error: 'Morceau introuvable.' });
+
+  return res.redirect(`${SUPABASE_BUCKET_URL}/${encodeURIComponent(track.stored_name)}`);
+}));
+
+// Cover endpoint: placé AVANT app.use(err) et app.listen !
+app.get('/api/tracks/:id/cover', requireAuth, asyncRoute(async (req, res) => {
+  const result = await pool.query(
+    `SELECT cover_name
+     FROM tracks
+     WHERE id = $1 AND is_published = TRUE`,
+    [req.params.id]
+  );
+
+  const track = result.rows[0];
+  if (!track || !track.cover_name) {
+    return res.status(404).json({ error: 'Pochette introuvable.' });
+  }
+
+  return res.redirect(`${SUPABASE_BUCKET_URL}/${encodeURIComponent(track.cover_name)}`);
 }));
 
 app.use((err, _req, res, _next) => {
@@ -212,37 +230,3 @@ app.use((err, _req, res, _next) => {
 
 const port = Number(process.env.PORT || 3000);
 app.listen(port, () => console.log(`MELÓMANE lancé sur http://localhost:${port}`));
-
-
-app.get('/api/tracks/:id/cover', requireAuth, asyncRoute(async (req, res) => {
-  const result = await pool.query(
-    `SELECT cover_name, cover_mime_type
-     FROM tracks
-     WHERE id = $1 AND is_published = TRUE`,
-    [req.params.id]
-  );
-
-  const track = result.rows[0];
-
-  if (!track || !track.cover_name) {
-    return res.status(404).json({
-      error: 'Pochette introuvable.'
-    });
-  }
-
-  const filePath = path.join(
-    uploadDir,
-    path.basename(track.cover_name)
-  );
-
-  if (!fs.existsSync(filePath)) {
-    return res.status(404).json({
-      error: 'Fichier de pochette indisponible.'
-    });
-  }
-
-  res.type(track.cover_mime_type || 'image/jpeg');
-  res.setHeader('Cache-Control', 'private, no-store');
-
-  res.sendFile(filePath);
-}));
