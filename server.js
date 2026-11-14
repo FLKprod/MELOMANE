@@ -29,6 +29,7 @@ fs.mkdirSync(uploadDir, { recursive: true });
 if (process.env.TRUST_PROXY === '1') app.set('trust proxy', 1);
 app.disable('x-powered-by');
 app.use(helmet({
+  crossOriginResourcePolicy: false,
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
